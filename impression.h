@@ -21,10 +21,27 @@
 
 int XML_ImprimerFichier( const char *nom_fichier ); /* Traitement d'un fichier */
 
+/* ———— Les différents types de question possibles ———— */
+
+#define QUESTION_ERREUR   -2
+#define QUESTION_INCONNUE -1
+
+#define QUESTION_CATEGORIE 1	/* Catégorie      , « category »    */
+#define QUESTION_QCM       2	/* Choix multiples, « multichoice » */
+#define QUESTION_VF        3	/* Vrai/Faux      , « truefalse »   */
+#define QUESTION_QROC      4	/* Réponse courte , « shortanswer » */
+#define QUESTION_PAIRES    5	/* Appariement    , « matching »    */
+#define QUESTION_LIBRE     6	/* Format libre   , « cloze »       */
+#define QUESTION_OUVERTE   7	/* Texte libre    , « essay »       */
+#define QUESTION_NUMERIQUE 8	/* Numérique      , « numerical »   */
+#define QUESTION_TEXTE     9	/*                , « description » */
+
 /* ———————— Les fonctions pour l'écriture en HTML ———————— */
 
 FILE *HTML_CommencerFichier( const char *nom_fichier );
 int   HTML_TerminerFichier ( FILE *fichier_HTML, int complet );
+
+int HTML_CreerCategorie( FILE *fichier_HTML, char *nom_categorie );
 
 /* ———————— Les fonctions pour l'interface ——————————————— */
 

@@ -17,7 +17,16 @@
 
 /* -------- Variables globales -------- */
 
+static int          categorie_ouverte = FAUX; /* VRAI si l'on a ouvert une catégorie */
+static unsigned int numero_categorie  = 0;    /* Décompte des catégories */
+
+static unsigned int numero_question   = 0;    /* Décompte des questions dans la catégorie */
+
 /* -------- Fonctions locales -------- */
+
+static char *HTML_PreparerTexte  (char *texte);
+
+static int   HTML_FermerCategorie(FILE *fichier_HTML);
 
 /* -------- Réalisation pratique -------- */
 
@@ -92,7 +101,8 @@ FILE *HTML_CommencerFichier( const char *nom_fichier )
 		  "<i>Conversion par le logiciel développé"
 		  " pour l'équipe TICE/Moodle de la faculté de pharmacie de Paris"
 		  " — © Emmanuel C<small>URIS</small>, septembre 2016 [version %s].</i>"
-		  "</p>\n",
+		  "</p>\n"
+		  "  <hr class=\"separateur\">\n",
 		  nom_fichier, VERSION );
 
   /* Plus besoin du nom de fichier… */
@@ -109,6 +119,10 @@ int HTML_TerminerFichier(FILE *fichier_HTML, int complet)
     return -1;
   }
 
+  /* On ferme la catégorie ouverte, s'il y en a une */
+  HTML_FermerCategorie( fichier_HTML );
+
+  /* On affiche un message en cas de problème de conversion */
   if ( FAUX == complet ) {
     (void) fprintf( fichier_HTML,
 		    " <div class=\"erreur\">\n"
@@ -132,3 +146,92 @@ int HTML_TerminerFichier(FILE *fichier_HTML, int complet)
 }
 
 
+/* ——————————————————————————————————————————————————————————————————————
+	   Traitement des différents types de question de Moodle
+ * —————————————————————————————————————————————————————————————————————— */
+
+/* ———————— Créer une catégorie ———————— */
+
+int HTML_CreerCategorie( FILE *fichier_HTML, char *nom_categorie )
+{
+  /* Vérifications initiales */
+  if ( NULL == fichier_HTML ) {
+    ERREUR( "Pas de fichier HTML indiqué !" );
+    return -1;
+  }
+  if ( NULL == nom_categorie ) {
+    ERREUR( "Pas de nom de catégorie indiqué !" );
+    return -2;
+  }
+
+  /* On ferme la catégorie précédente */
+  HTML_FermerCategorie( fichier_HTML );
+
+  /* On adapte le texte de la catégorie */
+  nom_categorie = HTML_PreparerTexte( nom_categorie );
+
+  /* On ouvre la catégorie */
+  numero_categorie++;
+  (void) fprintf( fichier_HTML,
+		  "  <div class=\"categorie\">\n"
+		  "   <h2 class=\"categorie\">Catégorie %u : %s</h2>\n"
+		  "   <div class=\"contenu_categorie\">\n",
+		  numero_categorie, nom_categorie );
+  categorie_ouverte = VRAI;
+  
+  /* Terminé sans souci */
+  return 0;
+}
+
+static int HTML_FermerCategorie(FILE *fichier_HTML)
+{
+  if ( FAUX == categorie_ouverte ) return 0;
+
+  /* Bilan sur l'analyse de cette catégorie */
+  (void) fprintf( fichier_HTML,
+		  "    <p class=\"bilan categorie\">" );
+  if ( 0 == numero_question ) {
+    (void) fprintf( fichier_HTML,
+		    "<span style=\"color: Red;\">"
+		    "<i>Aucune question dans cette catégorie&thinsp;!</i>"
+		    "</span>" );
+  } else if ( 1 == numero_question ) {
+    (void) fprintf( fichier_HTML,
+		    "Une seule question dans cette catégorie." );
+  } else {
+    (void) fprintf( fichier_HTML,
+		    "%u questions dans cette catégorie.",
+		    numero_question );
+  }
+  (void) fprintf( fichier_HTML, "</p>\n" );
+
+  /* On cloture la catégorie */
+  (void) fprintf( fichier_HTML,
+		  "   </div> <!-- du contenu de la catégorie -->\n"
+		  "  </div> <!-- de la catégorie -->\n" );
+  categorie_ouverte = FAUX;
+  return 0;
+}
+
+/* ———————— Préparer un texte pour sa sortie HTML ———————— */
+
+static char *HTML_PreparerTexte(char *texte)
+{
+  unsigned long lg_texte;
+
+  if ( NULL == texte ) return texte ;
+
+  /* On enlève la partie CDATA, au besoin */
+  if ( strncmp( "<![CDATA[", texte, 9 ) == 0 ) {
+    texte += 9;
+
+    /* Le ]]> final */
+    lg_texte = strlen( texte );
+    texte[ lg_texte - 1 ] = 0;
+    texte[ lg_texte - 2 ] = 0;
+    texte[ lg_texte - 3 ] = 0;
+  }
+
+  /* On renvoie le texte modifié */
+  return texte;
+}

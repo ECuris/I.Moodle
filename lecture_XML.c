@@ -18,19 +18,6 @@
 
 /* -------- Variables globales -------- */
 
-#define QUESTION_ERREUR   -2
-#define QUESTION_INCONNUE -1
-
-#define QUESTION_CATEGORIE 1	/* Catégorie      , « category »    */
-#define QUESTION_QCM       2	/* Choix multiples, « multichoice » */
-#define QUESTION_VF        3	/* Vrai/Faux      , « truefalse »   */
-#define QUESTION_QROC      4	/* Réponse courte , « shortanswer » */
-#define QUESTION_PAIRES    5	/* Appariement    , « matching »    */
-#define QUESTION_LIBRE     6	/* Format libre   , « cloze »       */
-#define QUESTION_OUVERTE   7	/* Texte libre    , « essay »       */
-#define QUESTION_NUMERIQUE 8	/* Numérique      , « numerical »   */
-#define QUESTION_TEXTE     9	/*                , « description » */
-
 /* -------- Fonctions locales -------- */
 
 char *ConvertirQuestion( char *ligne );
@@ -38,7 +25,8 @@ char *ConvertirQuestion( char *ligne );
 char *CQ_Categorie( void );
 char *CQ_ChoixMultiple( void );
 
-char *XML_LitBalise   ( FILE *fichier, int *code_erreur );
+char *XML_LitBalise       ( FILE *fichier, int *code_erreur );
+char *XML_LitContenuBalise( FILE *fichier, int *code_erreur );
 
 char *XML_LitQuestion ( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_HTML );
 
@@ -155,6 +143,13 @@ int XML_ImprimerFichier( const char *nom_fichier )
   /* Et tout s'est bien passé, apparemment */
   return 0;
 }
+
+
+/* ———————————————————————————————————————————————————————————————————— *
+ |                                                                      |
+ | 		   Traitement générique XML (simpliste)                 |
+ |                                                                      |
+ * ———————————————————————————————————————————————————————————————————— */
 
 /* ———————— Lecture d'une balise XML (ou HTML) ———————— 
    
@@ -295,6 +290,207 @@ char *XML_LitBalise( FILE *fichier, int *code_erreur )
   printf( "Balise lue : %s\n", balise );
   return balise;
 }
+
+
+/* ———————— Lecture d'une balise XML (ou HTML) ———————— 
+   
+   fichier     : le fichier à lire
+   code_erreur : pointeur sur un entier qui recevra le code d'erreur
+   
+   Renvoie NULL en cas d'erreur, quelle qu'elle soit
+                et remet alors le curseur du fichier là où il était
+
+	   une chaîne contenant le contenu de la balise, balises exclues, sinon.
+	   À libérer avec free()
+ */
+
+char *XML_LitContenuBalise( FILE *fichier, int *code_erreur )
+{
+  char *texte;
+  fpos_t position, debut_texte;
+  int c, retour;
+  unsigned long lg_texte = 0, i, n_lu;
+
+  /* Vérifications initiales */
+  if ( NULL == fichier ) {
+    ERREUR( "Pas de descripteur de fichier" );
+    if ( code_erreur != NULL ) *code_erreur = -70;
+    return NULL;
+  }
+
+  /* On mémorise la position initiale */
+  retour = fgetpos( fichier, &position );
+  if ( retour != 0 ) {
+    ERREUR( "Problème dans fgetpos [code : %d / %s] — lecture annulée",
+	    errno, strerror( errno ) );
+    if ( code_erreur != NULL ) *code_erreur = -71;
+    return NULL;
+  }
+
+  /* Lecture du premier caractère (hors espace, retour à la ligne…) */
+  c = fgetc( fichier );
+  while( isspace( c ) ) {
+    c = fgetc( fichier );
+    if ( EOF == c ) {
+      ERREUR( "Fin de fichier atteinte en voulant lire une balise…" );
+      if ( code_erreur != NULL ) *code_erreur = -72;
+
+      /* On se remet au début… */
+      retour = fsetpos( fichier, &position );
+      if ( retour != 0 ) {
+	ERREUR( "Problème dans fsetpos [code : %d / %s]",
+		errno, strerror( errno ) );
+      }
+
+      return NULL;
+    }
+  }
+
+  /* La, on est bien sur le début du contenu proprement dit */
+  if ( '<' == c ) {
+    int c_avant, c_avant_avant;
+
+    c = fgetc( fichier );
+    if ( '/' == c ) {
+      /* </ : balise fermante, normalement ne peut être que celle de l'ouvrante ici
+	  ⇒ la balise ne contient rien…
+       */
+      /* On recule de deux caractères… */
+      retour = fseek( fichier, -2, SEEK_CUR );
+      if ( retour != 0 ) {
+	ERREUR( "Problème de rembobinage du fichier [code %d : %s]",
+		errno, strerror( errno ) );
+	if ( code_erreur != NULL ) *code_erreur = +1;
+      }
+
+      /* On mémorise une chaîne d'un seul caractère : chaîne vide… */
+      texte = (char *) malloc( 1 );
+      if ( NULL == texte ) {
+	ERREUR( "Impossible de réserver une chaîne vide !" );
+	if ( code_erreur != NULL ) *code_erreur = -73;
+	return NULL;
+      }
+      *texte = 0;
+
+      /* On renvoie la chaîne vide que l'on a construite */
+      if ( code_erreur != NULL ) *code_erreur = 0;
+      return texte;
+    } else if ( '!' != c ) {
+      /* Ouverture de balise : cas non-géré
+	  ⇒ on ignore ce début de balise et on renvoie une erreur
+       */
+      ERREUR( "Balise au sein d'une balise Moodle finale — chargement problématique" );
+      if ( code_erreur != NULL ) *code_erreur = +10;
+      return NULL;
+    }
+
+    /* Si on est là, commence par <! : début de balise CDATA, que l'on lit */
+    /* On recule de deux caractères pour avoir toute la balise… */
+    retour = fseek( fichier, -2, SEEK_CUR );
+    if ( retour != 0 ) {
+      ERREUR( "Problème de rembobinage du fichier [code %d : %s]",
+	      errno, strerror( errno ) );
+      if ( code_erreur != NULL ) *code_erreur = +1;
+    }
+
+    /* On mémorise la position du début de la balise [peut être différente de celle du début… */
+    retour = fgetpos( fichier, &debut_texte );
+
+    /* On lit les trois premiers caractères [devraient être <![] */
+    c_avant_avant = fgetc( fichier );
+    c_avant       = fgetc( fichier );
+    c             = fgetc( fichier );
+    if ( ( c_avant_avant != '<' ) || ( c_avant != '!' ) || ( c != '[' ) ) {
+      ERREUR( "Début de balise <![CDATA[ incorrect : %c%c%c\n",
+	      c_avant_avant, c_avant, c );
+
+      /* On se remet au début… */
+      retour = fsetpos( fichier, &position );
+      if ( retour != 0 ) {
+	ERREUR( "Problème dans fsetpos [code : %d / %s]",
+		errno, strerror( errno ) );
+      }
+
+      return NULL;
+    }
+    lg_texte = 3;		/* Déjà trois caractères… */
+
+    do {
+      c_avant_avant = c_avant;
+      c_avant       = c;
+      c             = fgetc( fichier );
+      lg_texte++;
+      if ( EOF == c ) {
+      }
+    } while ( ( c_avant_avant != ']' ) || ( c_avant != ']' ) || ( c != '>' ) );
+
+  } else {
+    /* On mémorise la position du début de la balise [peut être différente de celle du début… */
+    retour = fgetpos( fichier, &debut_texte );
+    if ( retour != 0 ) {
+      ERREUR( "Problème dans fgetpos [code : %d / %s] — lecture annulée",
+	      errno, strerror( errno ) );
+      if ( code_erreur != NULL ) *code_erreur = -53;
+      return NULL;
+    }
+    
+    /* On lit jusqu'à trouver le début de la balise fermante
+       (postule qu'il n'y ait pas de balise ouvrante dans ce lot <balise>XXX</balise>)
+     */
+    do {
+      c = fgetc( fichier );
+      lg_texte++;
+      if ( EOF == c ) {
+	ERREUR( "Fin de fichier atteinte en voulant lire une balise…" );
+	if ( code_erreur != NULL ) *code_erreur = -75;
+
+	/* On se remet au début… */
+	retour = fsetpos( fichier, &position );
+	if ( retour != 0 ) {
+	  ERREUR( "Problème dans fsetpos [code : %d / %s]",
+		  errno, strerror( errno ) );
+	}
+
+	return NULL;
+      }
+    } while ( c != '<' );	/* On lit tout jusqu'à la balise suivante */
+    /* On annule la lecture du dernier caractère : début de la balise suivante */
+    ungetc( c, fichier );
+    lg_texte--;
+  }
+
+  /* On réserve & initialise la mémoire pour le contenu */
+  texte = (char *) malloc( sizeof( char ) * ( lg_texte + 1 ) );
+  for ( i = 0 ; i <= lg_texte ; i++ ) texte[ i ] = 0;
+
+  /* On se replace au début de la chaîne à lire */
+  retour = fsetpos( fichier, &debut_texte );
+  if ( retour != 0 ) {
+    ERREUR( "Problème dans fsetpos [code : %d / %s] — Lecture annulée",
+	    errno, strerror( errno ) );
+    free( texte ) ; texte = NULL;
+    if ( code_erreur != NULL ) *code_erreur = -57;
+    return NULL;
+  }
+
+  /* … et on relit tous en une fois */
+  n_lu = fread( texte, sizeof( char ), lg_texte, fichier );
+  if ( n_lu != lg_texte ) {
+    (void) fprintf( stderr, "%s,%s l.%u : Discordance de longueur dans la lecture de la balise [%lu vs %lu]\n",
+		    __FILE__, __FUNCTION__, __LINE__, n_lu, lg_texte );
+  }
+
+  /* On renvoie la chaîne que l'on a construite */
+  printf( "Texte lu : %s\n", texte );
+  if ( code_erreur != NULL ) *code_erreur = 0;
+  return texte;
+}
+
+/* ———————————————————————————————————————————————————————————————————— *
+ |                                                                      |
+ |	  	     Traitement des questions Moodle                    |
+ |                                                                      |
+ * ———————————————————————————————————————————————————————————————————— */
 
 /* ———————— Lecture et traitement d'une question ———————— 
  
@@ -458,6 +654,9 @@ int MOODLE_TypeQuestion( char *texte_type )
 
 char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_HTML )
 {
+  char *categorie;
+  int retour;
+
   /* Vérifications initiales */
   if ( NULL == balise ) {
     ERREUR( "Balise manquante !" );
@@ -487,14 +686,46 @@ char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fic
 
     balise = XML_LitBalise( fichier, code_erreur );
     if ( NULL == balise ) {
-      ERREUR( "Impossible de trouver la balise de texte [<text>]" );
+      ERREUR( "Impossible de trouver la balise de texte [<text>] (code %d)",
+	      code_erreur );
       return NULL;
     }
   } while ( strcmp( "<text>", balise ) != 0 );
 
   /* On lit le texte de cette balise */
+  categorie = XML_LitContenuBalise( fichier, code_erreur );
+  if ( NULL == categorie ) {
+    if ( *code_erreur < 0 ) {
+      /* Erreur grave… */
+      ERREUR( "Impossible de lire le contenu de la balise <text> (code %d)",
+	      code_erreur );
+      return balise;
+    }
+  }
+  printf( "Catégorie à faire : %s\n", categorie );
+
+  /* On fait la catégorie dans le fichier HTML */
+  retour = HTML_CreerCategorie( fichier_HTML, categorie );
+  if ( retour != 0 ) {
+    ERREUR( "Problème en préparant la catégorie %s\n",
+	    categorie );
+  }
+
+  /* Plus besoin du titre de la catégorie */
+  free( categorie ); categorie = NULL;
 
   /* On cherche la balise de catégorie fermante */
+  balise = XML_LitBalise( fichier, code_erreur );
+  if ( NULL == balise ) {
+    ERREUR( "Impossible de trouver la balise de texte [</text>] (code %d)",
+	    code_erreur );
+    return NULL;
+  }
+  if ( strcmp( "</text>", balise ) != 0 ) {
+    ERREUR( "Balise fermante incorrecte [%s au lieu de </text>]",
+	    balise );
+    return balise;
+  }
 
   /* On renvoie la dernière balise lue : sera traitée par la fonction appelante */
   return balise;
