@@ -15,20 +15,18 @@
 
 #include "impression.h"
 
-/* -------- Variables globales -------- */
+/* ~-~-~-~-~-~-~-~-~ Variables globales ~-~-~-~-~-~-~-~-~-~ */
 
-static int          categorie_ouverte = FAUX; /* VRAI si l'on a ouvert une catégorie */
-static unsigned int numero_categorie  = 0;    /* Décompte des catégories */
+int          categorie_ouverte = FAUX; /* VRAI si l'on a ouvert une catégorie */
+unsigned int numero_categorie  = 0;    /* Décompte des catégories */
 
-static unsigned int numero_question   = 0;    /* Décompte des questions dans la catégorie */
+unsigned int numero_question   = 0;    /* Décompte des questions dans la catégorie */
 
-/* -------- Fonctions locales -------- */
+/* ~-~-~-~-~-~-~-~-~ Fonctions locales ~-~-~-~-~-~-~-~-~-~- */
 
-static char *HTML_PreparerTexte  (char *texte);
+static inline const char *HTML_TexteTypeQuestion( int type );
 
-static int   HTML_FermerCategorie(FILE *fichier_HTML);
-
-/* -------- Réalisation pratique -------- */
+/* ~-~-~-~-~-~-~-~-~ Réalisation pratique ~-~-~-~-~-~-~-~-~ */
 
 /* ———————— Création du fichier HTML associé au XML
 
@@ -145,77 +143,9 @@ int HTML_TerminerFichier(FILE *fichier_HTML, int complet)
   return 0;
 }
 
-
-/* ——————————————————————————————————————————————————————————————————————
-	   Traitement des différents types de question de Moodle
- * —————————————————————————————————————————————————————————————————————— */
-
-/* ———————— Créer une catégorie ———————— */
-
-int HTML_CreerCategorie( FILE *fichier_HTML, char *nom_categorie )
-{
-  /* Vérifications initiales */
-  if ( NULL == fichier_HTML ) {
-    ERREUR( "Pas de fichier HTML indiqué !" );
-    return -1;
-  }
-  if ( NULL == nom_categorie ) {
-    ERREUR( "Pas de nom de catégorie indiqué !" );
-    return -2;
-  }
-
-  /* On ferme la catégorie précédente */
-  HTML_FermerCategorie( fichier_HTML );
-
-  /* On adapte le texte de la catégorie */
-  nom_categorie = HTML_PreparerTexte( nom_categorie );
-
-  /* On ouvre la catégorie */
-  numero_categorie++;
-  (void) fprintf( fichier_HTML,
-		  "  <div class=\"categorie\">\n"
-		  "   <h2 class=\"categorie\">Catégorie %u : %s</h2>\n"
-		  "   <div class=\"contenu_categorie\">\n",
-		  numero_categorie, nom_categorie );
-  categorie_ouverte = VRAI;
-  
-  /* Terminé sans souci */
-  return 0;
-}
-
-static int HTML_FermerCategorie(FILE *fichier_HTML)
-{
-  if ( FAUX == categorie_ouverte ) return 0;
-
-  /* Bilan sur l'analyse de cette catégorie */
-  (void) fprintf( fichier_HTML,
-		  "    <p class=\"bilan categorie\">" );
-  if ( 0 == numero_question ) {
-    (void) fprintf( fichier_HTML,
-		    "<span style=\"color: Red;\">"
-		    "<i>Aucune question dans cette catégorie&thinsp;!</i>"
-		    "</span>" );
-  } else if ( 1 == numero_question ) {
-    (void) fprintf( fichier_HTML,
-		    "Une seule question dans cette catégorie." );
-  } else {
-    (void) fprintf( fichier_HTML,
-		    "%u questions dans cette catégorie.",
-		    numero_question );
-  }
-  (void) fprintf( fichier_HTML, "</p>\n" );
-
-  /* On cloture la catégorie */
-  (void) fprintf( fichier_HTML,
-		  "   </div> <!-- du contenu de la catégorie -->\n"
-		  "  </div> <!-- de la catégorie -->\n" );
-  categorie_ouverte = FAUX;
-  return 0;
-}
-
 /* ———————— Préparer un texte pour sa sortie HTML ———————— */
 
-static char *HTML_PreparerTexte(char *texte)
+char *HTML_PreparerTexte(char *texte)
 {
   unsigned long lg_texte;
 
@@ -234,4 +164,93 @@ static char *HTML_PreparerTexte(char *texte)
 
   /* On renvoie le texte modifié */
   return texte;
+}
+
+/* ———————— Routines communes aux différentes questions ———————— */
+
+int HTML_CreerQuestion(FILE *fichier_HTML, int type, char *titre)
+{
+  if ( NULL == fichier_HTML ) return -1; /* Pas de fichier HTML indiqué… */
+
+  /* Une question supplémentaire */
+  numero_question++;
+
+  /* Le conteneur de la question */
+  (void) fprintf( fichier_HTML,
+		  "   <div class=\"question\">\n" );
+
+  /* Le bandeau avec le titre de la question */
+  (void) fprintf( fichier_HTML,
+		  "    <div class=\"en_tete question\">\n"
+		  "     <p class=\"numero_question\">Q %03u [%s]</p>\n"
+		  "     <h3 class=\"titre_question\">",
+		  numero_question, HTML_TexteTypeQuestion( type ) );
+  if ( NULL == titre ) {
+    (void) fprintf( fichier_HTML, "<i>Sans titre</i>" );
+  } else {
+    titre = HTML_PreparerTexte( titre );
+    (void) fprintf( fichier_HTML, titre );
+  }
+  (void) fprintf( fichier_HTML, "</h3>\n"
+		  "    </div>\n" );
+
+  /* Le début du contenant de l'énoncé et des réponses */
+  (void) fprintf( fichier_HTML,
+		  "    <div class=\"contenu question\">\n" );
+  return 0;
+}
+
+int HTML_FinirQuestion(FILE *fichier_HTML)
+{
+  if ( NULL == fichier_HTML ) return -1; /* Pas de fichier HTML indiqué… */
+
+  (void) fprintf( fichier_HTML,
+		  "    </div> <!-- Contenu de la question -->\n"
+		  "   </div> <!-- Question -->\n\n" );
+
+  return 0;
+}
+
+
+static inline const char *HTML_TexteTypeQuestion(int type)
+{
+  switch( type ) {
+  case QUESTION_ERREUR:
+    return "<span class=\"erreur\">ERREUR</span>";
+
+  case QUESTION_INCONNUE:
+    return "<span class=\"avertissement\">Type inconnu</span>";
+
+  case QUESTION_CATEGORIE:
+    return "Catégorie";
+
+  case QUESTION_QCM:
+    return "QCM";
+
+  case QUESTION_VF:
+    return "V/F";
+
+  case QUESTION_QROC:
+    return "QROC";
+
+  case QUESTION_PAIRES:
+    return "Paires";
+
+  case QUESTION_LIBRE:
+    return "Complexe";
+
+  case QUESTION_OUVERTE:
+    return "Ouverte";
+
+  case QUESTION_NUMERIQUE:
+    return "Numérique";
+
+  case QUESTION_TEXTE:
+    return "— description —";
+
+  default:
+    return "<span class=\"erreur\">À IMPLÉMENTER</span>";
+  }
+
+  return "<span class=\"erreur\">Impossible</span>";
 }

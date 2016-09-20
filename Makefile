@@ -13,10 +13,14 @@ LIBS = -L/home/curis/Programmes/Lase/Utilitaires -lutils -lm
 
 CFLAGS = $(CC_OPT)
 
-imprime_Moodle: principal.o erreurs.o lecture_XML.o sortie_HTML.o
-	$(CC) principal.o erreurs.o lecture_XML.o sortie_HTML.o -o imprime_Moodle $(LIBS)
+OBJETS = categorie.o erreurs.o lecture_XML.o principal.o qcm.o sortie_HTML.o
 
+imprime_Moodle: $(OBJETS)
+	$(CC) $(OBJETS) -o imprime_Moodle $(LIBS)
+
+categorie.o   : categorie.c impression.h
 erreurs.o     : erreurs.c impression.h
 principal.o   : principal.c impression.h
+qcm.o         : qcm.c impression.h
 lecture_XML.o : lecture_XML.c impression.h
 sortie_HTML.o : sortie_HTML.c impression.h

@@ -21,6 +21,11 @@
 
 int XML_ImprimerFichier( const char *nom_fichier ); /* Traitement d'un fichier */
 
+char *XML_LitBalise       ( FILE *fichier, int *code_erreur );
+char *XML_LitContenuBalise( FILE *fichier, int *code_erreur );
+
+char *XML_Q_TrouverTitre  ( FILE *fichier, int *code_erreur );
+
 /* ———— Les différents types de question possibles ———— */
 
 #define QUESTION_ERREUR   -2
@@ -36,12 +41,21 @@ int XML_ImprimerFichier( const char *nom_fichier ); /* Traitement d'un fichier *
 #define QUESTION_NUMERIQUE 8	/* Numérique      , « numerical »   */
 #define QUESTION_TEXTE     9	/*                , « description » */
 
+char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_HTML );
+char *XML_LitQCM      ( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_HTML );
+
 /* ———————— Les fonctions pour l'écriture en HTML ———————— */
 
 FILE *HTML_CommencerFichier( const char *nom_fichier );
 int   HTML_TerminerFichier ( FILE *fichier_HTML, int complet );
 
-int HTML_CreerCategorie( FILE *fichier_HTML, char *nom_categorie );
+char *HTML_PreparerTexte   ( char *texte );
+
+int HTML_CreerCategorie ( FILE *fichier_HTML, char *nom_categorie );
+int HTML_FermerCategorie( FILE *fichier_HTML );
+
+int HTML_CreerQuestion( FILE *fichier_HTML, int type, char *titre );
+int HTML_FinirQuestion( FILE *fichier_HTML );
 
 /* ———————— Les fonctions pour l'interface ——————————————— */
 

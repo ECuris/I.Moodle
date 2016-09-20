@@ -22,15 +22,9 @@
 
 char *ConvertirQuestion( char *ligne );
 
-char *CQ_Categorie( void );
 char *CQ_ChoixMultiple( void );
 
-char *XML_LitBalise       ( FILE *fichier, int *code_erreur );
-char *XML_LitContenuBalise( FILE *fichier, int *code_erreur );
-
 char *XML_LitQuestion ( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_HTML );
-
-char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_HTML );
 
 int MOODLE_TypeQuestion( char *texte_type );
 
@@ -62,7 +56,7 @@ int XML_ImprimerFichier( const char *nom_fichier )
     ERREUR( "Erreur en ouvrant le fichier %s\n", nom_fichier );
     return -2;
   }
-  printf( "On a ouvert le fichier…\n" );
+  /* printf( "On a ouvert le fichier…\n" ); */
 
   /* Lecture du premier caractère : doit être un < */
   c = fgetc( fichier );
@@ -72,7 +66,7 @@ int XML_ImprimerFichier( const char *nom_fichier )
     return -3;
   }
   ungetc( c, fichier );   /* On remet le caractère pour être tranquille */
-  printf( "C'est un fichier qui commence bien par < …\n" );
+  /* printf( "C'est un fichier qui commence bien par < …\n" ); */
 
   /* Lecture de la première balise : est-ce bien du XML Moodle ? */
   balise = XML_LitBalise( fichier, &code_erreur );
@@ -101,10 +95,10 @@ int XML_ImprimerFichier( const char *nom_fichier )
       (void) fclose( fichier ); fichier = NULL;
       return -5;
     }
-    printf( "Comparaison : %d [%s]\n", strcmp( "<quiz>", balise ), balise );
+    /* printf( "Comparaison : %d [%s]\n", strcmp( "<quiz>", balise ), balise ); */
   } while( strcmp( "<quiz>", balise ) != 0 );
-  printf( "C'est bien un fichier qui ressemble à du Moodle…\n" );
-  printf( "On a trouvé le début du quiz…\n" );
+  /* printf( "C'est bien un fichier qui ressemble à du Moodle…\n" ); */
+  /* printf( "On a trouvé le début du quiz…\n" ); */
 
   /* ———— On ouvre donc le fichier de sortie HTML ———— */
   fichier_HTML = HTML_CommencerFichier( nom_fichier );
@@ -287,7 +281,7 @@ char *XML_LitBalise( FILE *fichier, int *code_erreur )
   }
 
   /* On renvoie la balise lue… */
-  printf( "Balise lue : %s\n", balise );
+  /* printf( "Balise lue : %s\n", balise ); */
   return balise;
 }
 
@@ -481,7 +475,7 @@ char *XML_LitContenuBalise( FILE *fichier, int *code_erreur )
   }
 
   /* On renvoie la chaîne que l'on a construite */
-  printf( "Texte lu : %s\n", texte );
+  /* printf( "Texte lu : %s\n", texte ); */
   if ( code_erreur != NULL ) *code_erreur = 0;
   return texte;
 }
@@ -571,11 +565,15 @@ char *XML_LitQuestion( FILE *fichier, char *balise, int *code_erreur, FILE *fich
   }
   
   position += 6;
-  printf( " Type de la question : %s\n", position );
+  /* printf( " Type de la question : %s\n", position ); */
   type_question = MOODLE_TypeQuestion( position );
   switch( type_question ) {
   case QUESTION_CATEGORIE:
     balise = XML_LitCategorie( fichier, balise, code_erreur, fichier_HTML );
+    break;
+
+  case QUESTION_QCM:
+    balise = XML_LitQCM( fichier, balise, code_erreur, fichier_HTML );
     break;
 
   case QUESTION_ERREUR:
@@ -646,87 +644,146 @@ int MOODLE_TypeQuestion( char *texte_type )
   return code_question;
 }
 
-/* ——————————————————————————————————————————————————————————————————————
-	   Traitement des différents types de question de Moodle
- * —————————————————————————————————————————————————————————————————————— */
 
-/* ———————— Catégorie ———————— */
 
-char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_HTML )
+/* ———————————————————————————————————————————————————————————————————— *
+ |                                                                      |
+ |       Morceaux fréquents de lecture d'une question XML Moodle        |
+ |                                                                      |
+ * ———————————————————————————————————————————————————————————————————— */
+
+/* ———————— Trouver le titre d'une question XML Moodle ———————— 
+ */
+
+char *XML_Q_TrouverTitre(FILE *fichier, int *code_erreur)
 {
-  char *categorie;
-  int retour;
+  char *balise, *titre;
+  int premiere_balise = VRAI, retour;
+  fpos_t position_debut;
 
-  /* Vérifications initiales */
-  if ( NULL == balise ) {
-    ERREUR( "Balise manquante !" );
-    if ( NULL != code_erreur ) *code_erreur = -10;
+  /* On mémorise la position du début de la question */
+  retour = fgetpos( fichier, &position_debut );
+  if ( retour != 0 ) {
+    ERREUR( "Problème dans fgetpos [code : %d / %s] — lecture annulée",
+	    errno, strerror( errno ) );
+    if ( code_erreur != NULL ) *code_erreur = -81;
     return NULL;
   }
-  if ( ( NULL == fichier ) || ( NULL == fichier_HTML ) ) {
-    ERREUR( "Problème avec l'un des deux fichiers transmis" );
-    if ( NULL != code_erreur ) *code_erreur = -1;
-    return balise;
+
+  /* On lit la 1re balise de la question */
+  balise = XML_LitBalise( fichier, code_erreur );
+  if ( NULL == balise ) {
+    ERREUR( "Impossible de trouver une balise" );
+    return NULL;
   }
 
-  /* On cherche la balise qui commence une catégorie */
-  do {
+  /* Tant que cette balise n'est pas la bonne… */
+  while( strncmp( "<name", balise, 5 ) != 0 ) {
+    premiere_balise = FAUX;	/* C'est donc que le nom est au milieu ou absent */
     free( balise ); balise = NULL;
 
+    /* On récupère la balise suivante… */
     balise = XML_LitBalise( fichier, code_erreur );
     if ( NULL == balise ) {
-      ERREUR( "Impossible de trouver la balise de catégorie [<category>]" );
+      ERREUR( "Problème en cherchant le nom de la question [code %d]\n",
+	      *code_erreur );
       return NULL;
     }
-  } while ( strcmp( "<category>", balise ) != 0 );
+    if ( strcmp( "</question>", balise ) == 0 ) {
+      (void) fprintf( stderr, "%s,%s l.%u : Question sans balise « nom »\n",
+		      __FILE__, __FUNCTION__, __LINE__ );
+      /* On se remet au début de la question */
+      retour = fsetpos( fichier, &position_debut );
+      if ( retour != 0 ) {
+	ERREUR( "Problème dans fsetpos [code : %d / %s] — lecture ultérieure attendue problématique",
+		errno, strerror( errno ) );
+      }
 
-  /* On cherche la balise qui commence le texte de cette catégorie */
+      /* On renvoie NULL, mais sans erreur */
+      if ( code_erreur != NULL ) *code_erreur = 0;
+      return NULL;
+    }
+  }
+
+  /* Si on est là : on a lu la balise <name*> */
   do {
     free( balise ); balise = NULL;
 
+    /* On doit lire donc une balise texte */
     balise = XML_LitBalise( fichier, code_erreur );
     if ( NULL == balise ) {
-      ERREUR( "Impossible de trouver la balise de texte [<text>] (code %d)",
-	      code_erreur );
+      ERREUR( "Problème en voulant lire le contenu de la balise <name> [code %d]\n",
+	      *code_erreur );
+      return NULL;
+    }
+    if ( strcmp( "</name>", balise ) == 0 ) {
+      /* Balise vide ou sans texte */
+      if ( FAUX == premiere_balise ) {
+	retour = fsetpos( fichier, &position_debut );
+	if ( retour != 0 ) {
+	  ERREUR( "Problème dans fsetpos [code : %d / %s] — lecture ultérieure attendue problématique",
+		  errno, strerror( errno ) );
+	}
+      }
+
+      ERREUR( "Balise <name> sans balise <text>. Format inconnu." );
+
+      /* On libère la balise */
+      free( balise ); balise = NULL;
+
+      /* On renvoie NULL, mais sans erreur */
+      if ( code_erreur != NULL ) *code_erreur = 0;
       return NULL;
     }
   } while ( strcmp( "<text>", balise ) != 0 );
 
-  /* On lit le texte de cette balise */
-  categorie = XML_LitContenuBalise( fichier, code_erreur );
-  if ( NULL == categorie ) {
-    if ( *code_erreur < 0 ) {
-      /* Erreur grave… */
-      ERREUR( "Impossible de lire le contenu de la balise <text> (code %d)",
-	      code_erreur );
-      return balise;
-    }
-  }
-  printf( "Catégorie à faire : %s\n", categorie );
+  /* On libère la balise : plus besoin d'elle… */
+  free( balise ); balise = NULL;
 
-  /* On fait la catégorie dans le fichier HTML */
-  retour = HTML_CreerCategorie( fichier_HTML, categorie );
-  if ( retour != 0 ) {
-    ERREUR( "Problème en préparant la catégorie %s\n",
-	    categorie );
-  }
-
-  /* Plus besoin du titre de la catégorie */
-  free( categorie ); categorie = NULL;
-
-  /* On cherche la balise de catégorie fermante */
-  balise = XML_LitBalise( fichier, code_erreur );
-  if ( NULL == balise ) {
-    ERREUR( "Impossible de trouver la balise de texte [</text>] (code %d)",
-	    code_erreur );
+  /* Si on est là, on n'a plus qu'à lire le texte du nom */
+  titre = XML_LitContenuBalise( fichier, code_erreur );
+  if ( NULL == titre ) {
+    ERREUR( "Erreur en voulant lire le titre d'une question (après balise <text>)" );
     return NULL;
   }
-  if ( strcmp( "</text>", balise ) != 0 ) {
-    ERREUR( "Balise fermante incorrecte [%s au lieu de </text>]",
-	    balise );
-    return balise;
+
+  /* Si première balise [cas le lus fréquent] :
+       inutile de rembobiner, autant continuer à lire directement.
+       Pour être tranquille, on lit les deux balises </text> et </name>
+   */
+  if ( VRAI == premiere_balise ) {
+    balise = XML_LitBalise( fichier, code_erreur ); /* Normalement, </text> */
+    if ( NULL == balise ) {
+      ERREUR( "Problème en voulant lire la balise </text> [code %d]\n",
+	      *code_erreur );
+      return NULL;
+    }
+    if ( strcmp( balise, "</text>" ) != 0 ) {
+      ERREUR( "Balise inattendue : %s (au lieu de </text>)", balise );
+    }
+
+    do {
+      free( balise ); balise = NULL;
+
+      balise = XML_LitBalise( fichier, code_erreur ); /* Normalement, </text> */
+      if ( NULL == balise ) {
+	ERREUR( "Problème en cherchant la balise </name> [code %d]\n",
+		*code_erreur );
+	return NULL;
+      }
+    } while( strcmp( balise, "</name>" ) != 0 );
+
+    /* On libère la dernière balise : </base>, inutile */
+    free( balise ); balise = NULL;
+  } else {
+    /* Sinon, on se remet au début de la question */
+    retour = fsetpos( fichier, &position_debut );
+    if ( retour != 0 ) {
+      ERREUR( "Problème dans fsetpos [code : %d / %s] — lecture ultérieure attendue problématique",
+	      errno, strerror( errno ) );
+    }
   }
 
-  /* On renvoie la dernière balise lue : sera traitée par la fonction appelante */
-  return balise;
+  /* On renvoie le titre de la question */
+  return titre;
 }
