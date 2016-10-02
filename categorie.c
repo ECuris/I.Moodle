@@ -48,7 +48,7 @@ char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fic
   do {
     free( balise ); balise = NULL;
 
-    balise = XML_LitBalise( fichier, code_erreur );
+    balise = XML_LitBalise( fichier, code_erreur, FAUX );
     if ( NULL == balise ) {
       ERREUR( "Impossible de trouver la balise de catégorie [<category>]" );
       return NULL;
@@ -59,7 +59,7 @@ char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fic
   do {
     free( balise ); balise = NULL;
 
-    balise = XML_LitBalise( fichier, code_erreur );
+    balise = XML_LitBalise( fichier, code_erreur, FAUX );
     if ( NULL == balise ) {
       ERREUR( "Impossible de trouver la balise de texte [<text>] (code %d)",
 	      code_erreur );
@@ -77,7 +77,7 @@ char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fic
       return balise;
     }
   }
-  printf( "Catégorie à faire : %s\n", categorie );
+  printf( "Catégorie à faire  : %s\n", categorie );
 
   /* On fait la catégorie dans le fichier HTML */
   retour = HTML_CreerCategorie( fichier_HTML, categorie );
@@ -90,7 +90,7 @@ char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fic
   free( categorie ); categorie = NULL;
 
   /* On cherche la balise de catégorie fermante */
-  balise = XML_LitBalise( fichier, code_erreur );
+  balise = XML_LitBalise( fichier, code_erreur, FAUX );
   if ( NULL == balise ) {
     ERREUR( "Impossible de trouver la balise de texte [</text>] (code %d)",
 	    code_erreur );
@@ -107,7 +107,6 @@ char *XML_LitCategorie( FILE *fichier, char *balise, int *code_erreur, FILE *fic
 }
 
 /* ———————— Écriture d'une catégorie dans le fichier HTML pour impression ———————— */
-
 
 /* ———————— Créer une catégorie ———————— */
 

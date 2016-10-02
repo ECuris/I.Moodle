@@ -60,7 +60,7 @@ FILE *HTML_CommencerFichier( const char *nom_fichier )
   /* On ajoute l'extension .html */
   nom_fichier_HTML = TXT_AjouteTexte( nom_fichier_HTML, ".html" );
  
-  printf( "Fichier à écrire : %s\n", nom_fichier_HTML );
+  printf( "Fichier à écrire   : %s\n", nom_fichier_HTML );
 
   /* ———— Ouverture du fichier ———— */
   fichier_HTML = fopen( nom_fichier_HTML, "w" );
@@ -166,7 +166,14 @@ char *HTML_PreparerTexte(char *texte)
   return texte;
 }
 
-/* ———————— Routines communes aux différentes questions ———————— */
+
+/* ———————————————————————————————————————————————————————————————————— *
+ |                                                                      |
+ |       Morceaux fréquents d'écriture d'une question XML Moodle        |
+ |                                                                      |
+ * ———————————————————————————————————————————————————————————————————— */
+
+/* ———————— Création d'une question en HTML ———————— */
 
 int HTML_CreerQuestion(FILE *fichier_HTML, int type, char *titre)
 {
@@ -189,23 +196,243 @@ int HTML_CreerQuestion(FILE *fichier_HTML, int type, char *titre)
     (void) fprintf( fichier_HTML, "<i>Sans titre</i>" );
   } else {
     titre = HTML_PreparerTexte( titre );
-    (void) fprintf( fichier_HTML, titre );
+    (void) fputs( titre, fichier_HTML );
   }
   (void) fprintf( fichier_HTML, "</h3>\n"
 		  "    </div>\n" );
 
   /* Le début du contenant de l'énoncé et des réponses */
   (void) fprintf( fichier_HTML,
-		  "    <div class=\"contenu question\">\n" );
+		  "    <table class=\"contenu question\">\n" );
   return 0;
 }
+
+/* ———————— Préparer l'énoncé d'une question en HTML ————————
+     
+   fichier_HTML    : celui où écrire le code HTML produit
+   enonce          : la chaîne brute contenant l'énoncé
+   nombre_reponses : le nombre de réponses connues
+   titres          : si VRAI, indiquer les titres
+ */
+
+int HTML_EnonceQuestion(FILE *fichier_HTML, char *enonce, unsigned int nombre_reponses, int titres)
+{
+  if ( NULL == fichier_HTML ) return -1; /* Pas de fichier HTML indiqué… */
+
+  /* Ligne avec les titres des morceaux */
+  if ( VRAI == titres ) {
+    (void) fprintf( fichier_HTML,
+		    "     <tr>\n"
+		    "      <th class=\"titre énoncé\">Énoncé</th>\n"
+		    "      <th class=\"titre réponse\" colspan=3>Réponse" );
+    if ( nombre_reponses > 1 ) {
+      (void) fprintf( fichier_HTML,
+		      "s<br /><span class=\"nbr_réponses\">%u réponses enregistrées</span>",
+		      nombre_reponses );
+    }
+    (void) fprintf( fichier_HTML,
+		    "</th>\n" 
+		    "     </tr>\n" );
+  }
+
+  /* Ligne avec l'énoncé (en comptant une ligne par réponse ensuite */
+  (void) fprintf( fichier_HTML,
+		  "     <tr>\n"
+		  "      <td class=\"enonce\"" );
+  if ( nombre_reponses > 1 ) {
+    (void) fprintf( fichier_HTML,
+		    " rowspan=%u",
+		    nombre_reponses );
+  }
+  (void) fprintf( fichier_HTML, ">" );
+
+  /* L'énoncé proprement dit */
+  if ( NULL == enonce ) {
+    (void) fputs( "<span class=\"avertissement\">Sans énoncé</span>", fichier_HTML );
+  } else {
+    enonce = HTML_PreparerTexte( enonce );
+    (void) fputs( enonce, fichier_HTML );
+  }
+
+  /* Tout s'est bien passé */
+  return 0;  
+}
+
+/* ———————— Sortir une réponse à une question en HTML ————————
+               1) Commencer la réponse…
+
+   fichier_HTML   : celui où écrire le code HTML produit
+   fraction       : la (fraction de) note de cette réponse, en %
+   numero_reponse : le numéro de la réponse
+ */
+
+int HTML_CommencerReponse(FILE *fichier_HTML, double fraction,
+			  unsigned int numero_reponse)
+{
+  int fraction_i;
+  int retour;
+
+  if ( NULL == fichier_HTML ) return -1; /* Pas de fichier HTML indiqué… */
+
+  /* Si pas la 1re réponse, on commence une nouvelle ligne dans le tableau */
+  if ( numero_reponse > 1 ) {
+    retour = fputs( "     <tr>", fichier_HTML );
+    if ( retour <= 0 ) {
+      (void) fprintf( stderr, "%s,%s l.%u : ERREUR en voulant commencer une réponse [code %d]\n",
+		      __FILE__, __FUNCTION__, __LINE__, retour );
+    }
+  }
+
+  /* Début de la colonne… */
+  retour = fprintf( fichier_HTML,
+		    "      <td class=\"reponse numero\">%u</td>\n",
+		    numero_reponse );
+  if ( retour < 0 ) {
+    (void) fprintf( stderr, "%s,%s l.%u : ERREUR en voulant numéroter la réponse [code %d]\n",
+		    __FILE__, __FUNCTION__, __LINE__, retour );
+  }
+
+  /* Affichage de la note */
+  retour = fputs( "      <td class=\"reponse note ", fichier_HTML );
+  if ( retour <= 0 ) {
+    (void) fprintf( stderr, "%s,%s l.%u :"
+		    " ERREUR en voulant commencer la fraction de note [code %d]\n",
+		    __FILE__, __FUNCTION__, __LINE__, retour );
+  }
+  fraction_i = (int) fraction;
+
+  /* La classe suivant le type de réponse */
+  if ( 100 == fraction_i ) {
+    retour = fputs( "juste", fichier_HTML );
+  } else if ( fraction > 0.0 ) {
+    retour = fputs( "juste partielle", fichier_HTML );
+  } else if ( 0 == fraction ) {
+    retour = fputs( "fausse", fichier_HTML );
+  } else if ( fraction < 0 ) {
+    retour = fputs( "fausse negatif", fichier_HTML );
+  }
+  if ( retour <= 0 ) {
+    (void) fprintf( stderr, "%s,%s l.%u :"
+		    " ERREUR en voulant écrire la classe CSS de la note [code %d]\n",
+		    __FILE__, __FUNCTION__, __LINE__, retour );
+  }
+
+  retour = fputs( "\">", fichier_HTML );
+  if ( retour <= 0 ) {
+    (void) fprintf( stderr, "%s,%s l.%u :"
+		    " ERREUR en voulant écrire la classe CSS de la note [code %d]\n",
+		    __FILE__, __FUNCTION__, __LINE__, retour );
+  }
+
+
+  /* Le signe de la note */
+  retour = 0;
+  if ( fraction_i < 0 ) {
+    retour = fputs( "&minus;", fichier_HTML );
+    fraction_i = -fraction_i;
+  } else if ( fraction_i > 0 ) {
+    retour = fputc( '+', fichier_HTML );
+  }
+  if ( retour < 0 ) {
+    (void) fprintf( stderr, "%s,%s l.%u :"
+		    " ERREUR en voulant écrire le signe de la note [code %d]\n",
+		    __FILE__, __FUNCTION__, __LINE__, retour );
+  }
+
+  /* La note */
+  if ( ( fraction - fraction_i ) < 0.01 ) {
+    if ( 0 == fraction_i ) {
+      retour = fputs( "0", fichier_HTML );
+    } else {
+      retour = fprintf( fichier_HTML, "%d&thinsp;%%", fraction_i );
+    }
+  } else {
+    /* Cas possibles : 1/9 de la note = 11,11 %
+                       1/8 de la note = 12,50 %
+                       1/7 de la note = 14,28 %
+                       1/6 de la note = 16,66 %
+                       1/3 de la note = 33,33 %
+                       2/3 de la note = 66,66 %
+                       5/6 de la note = 83,33 %
+     */
+    retour = fprintf( fichier_HTML, "%.2f&thinsp;%%", fraction );
+  }
+  if ( retour < 0 ) {
+    (void) fprintf( stderr, "%s,%s l.%u :"
+		    " ERREUR en voulant écrire la note [code %d]\n",
+		    __FILE__, __FUNCTION__, __LINE__, retour );
+  }
+
+  (void) fprintf( fichier_HTML,
+		  "</td>\n"
+		  "      <td class=\"reponse texte\">" );
+
+  /* Tout s'est bien passé */
+  return 0;
+}
+
+
+/* ———————— Sortir une réponse à une question en HTML ————————
+               2) Le texte de la réponse…
+
+   fichier_HTML   : celui où écrire le code HTML produit
+   reponse        : le texte brut de la réponse
+ */
+
+int HTML_TexteReponse(FILE *fichier_HTML, char *reponse)
+{
+  int retour;
+
+  if ( NULL == fichier_HTML ) return -1; /* Pas de fichier HTML indiqué… */
+
+  /* On traduit le texte de la réponse */
+  if ( NULL == reponse ) {
+    retour = fputs( "<span class=\"avertissement\">Aucune réponse indiquée</span>",
+		    fichier_HTML );
+  } else {
+    reponse = HTML_PreparerTexte( reponse );
+    retour = fputs( reponse, fichier_HTML );
+  }
+  if ( retour <= 0 ) {
+    ERREUR( "Problème en voulant écrire la réponse [code %d ; réponse %s]\n",
+	    retour, reponse );
+
+    return -10;
+  }
+
+  /* Tout s'est bien passé */
+  return 0;
+}
+
+
+/* ———————— Sortir une réponse à une question en HTML ————————
+               3) Terminer la réponse…
+
+   fichier_HTML   : celui où écrire le code HTML produit
+ */
+
+int HTML_FinirReponse(FILE *fichier_HTML)
+{
+  if ( NULL == fichier_HTML ) return -1; /* Pas de fichier HTML indiqué… */
+
+   /* Fin de la réponse */
+  (void) fprintf( fichier_HTML,
+		  "</td>\n"
+		  "     </tr>\n" );
+
+  /* Tout s'est bien passé */
+  return 0;
+}
+
+
+/* ———————— Terminer une question en HTML ———————— */
 
 int HTML_FinirQuestion(FILE *fichier_HTML)
 {
   if ( NULL == fichier_HTML ) return -1; /* Pas de fichier HTML indiqué… */
 
   (void) fprintf( fichier_HTML,
-		  "    </div> <!-- Contenu de la question -->\n"
+		  "    </table> <!-- Contenu de la question -->\n"
 		  "   </div> <!-- Question -->\n\n" );
 
   return 0;

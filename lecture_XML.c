@@ -48,7 +48,7 @@ int XML_ImprimerFichier( const char *nom_fichier )
     ERREUR( "Aucun nom de fichier indiqué" );
     return -1;
   }
-  printf( "Fichier à lire   : %s\n", nom_fichier );
+  printf( "Fichier à lire     : %s\n", nom_fichier );
 
   /* On ouvre le fichier à lire */
   fichier = fopen( nom_fichier, "r" );
@@ -69,7 +69,7 @@ int XML_ImprimerFichier( const char *nom_fichier )
   /* printf( "C'est un fichier qui commence bien par < …\n" ); */
 
   /* Lecture de la première balise : est-ce bien du XML Moodle ? */
-  balise = XML_LitBalise( fichier, &code_erreur );
+  balise = XML_LitBalise( fichier, &code_erreur, VRAI );
   if ( NULL == balise ) {
     ERREUR( "Impossible de lire la 1re balise… [Fichier : %s ; code : %d]\n",
 	    nom_fichier, code_erreur );
@@ -86,9 +86,10 @@ int XML_ImprimerFichier( const char *nom_fichier )
 
   /* On cherche le début des questions [balise <quiz>] */
   do {
+    printf( "Balise lue : %s\n", balise );
     free( balise ); balise = NULL;
 
-    balise = XML_LitBalise( fichier, &code_erreur );
+    balise = XML_LitBalise( fichier, &code_erreur, VRAI );
     if ( NULL == balise ) {
       ERREUR( "Impossible de trouver le début des questions (balise <quiz>) [code %d]",
 	      code_erreur );
@@ -98,7 +99,7 @@ int XML_ImprimerFichier( const char *nom_fichier )
     /* printf( "Comparaison : %d [%s]\n", strcmp( "<quiz>", balise ), balise ); */
   } while( strcmp( "<quiz>", balise ) != 0 );
   /* printf( "C'est bien un fichier qui ressemble à du Moodle…\n" ); */
-  /* printf( "On a trouvé le début du quiz…\n" ); */
+  printf( "On a trouvé le début du quiz…\n" );
 
   /* ———— On ouvre donc le fichier de sortie HTML ———— */
   fichier_HTML = HTML_CommencerFichier( nom_fichier );
@@ -112,7 +113,7 @@ int XML_ImprimerFichier( const char *nom_fichier )
   do {
     free( balise ); balise = NULL;
 
-    balise = XML_LitBalise( fichier, &code_erreur );
+    balise = XML_LitBalise( fichier, &code_erreur, VRAI );
     if ( NULL == balise ) {
       ERREUR( "Fin de fichier pendant la lecture des questions (balise </quiz> manquante ?) [code %d]",
 	      code_erreur );
@@ -147,8 +148,12 @@ int XML_ImprimerFichier( const char *nom_fichier )
 
 /* ———————— Lecture d'une balise XML (ou HTML) ———————— 
    
-   fichier     : le fichier à lire
-   code_erreur :
+   fichier       : le fichier à lire
+   code_erreur   : pointeur sur un entier qui recevra le code d'erreur éventuel
+   avertissement : VRAI = on veut lire une balise,
+                          on affiche si texte ignoré avant de trouver la balise
+		   FAUX = on cherche une balise,
+		          on a donc des chances d'avoir du texte ignoré
    
    Renvoie NULL en cas d'erreur, quelle qu'elle soit
                 et remet alors le curseur du fichier là où il était
@@ -156,7 +161,7 @@ int XML_ImprimerFichier( const char *nom_fichier )
 	   une chaîne contenant la balise, <> inclus, sinon. À libérer avec free()
  */
 
-char *XML_LitBalise( FILE *fichier, int *code_erreur )
+char *XML_LitBalise( FILE *fichier, int *code_erreur, int avertissement )
 {
   char *balise;
   fpos_t position, debut_balise;
@@ -180,28 +185,34 @@ char *XML_LitBalise( FILE *fichier, int *code_erreur )
 
   /* On lit jusqu'à trouver une balise ouvrante */
   c = fgetc( fichier );
-  if ( c != '<' ) {
-    (void) fprintf( stderr, "%s,%s l.%u : Attention, on n'est pas sur une balise…\n",
-		    __FILE__, __FUNCTION__, __LINE__ );
 
+  while( c != '<' ) {
     /* On n'est pas sur une ouverture de balise : on lit jusqu'à en trouver une… */
-    while( c != '<' ) {
-      c = fgetc( fichier );
-      if ( EOF == c ) {
-	ERREUR( "Fin de fichier atteinte sans trouver de balise…" );
-	if ( code_erreur != NULL ) *code_erreur = -52;
-
-	/* On se remet au début… */
-	retour = fsetpos( fichier, &position );
-	if ( retour != 0 ) {
-	  ERREUR( "Problème dans fsetpos [code : %d / %s]",
-		  errno, strerror( errno ) );
-	}
-	return NULL;
+    if ( 0 == isspace( c ) ) {
+      /* Les retours à la ligne, espaces… sont tolérés */
+      if ( VRAI == avertissement ) {
+	(void) fprintf( stderr, "%s,%s l.%u : Attention, on n'est pas sur une balise…"
+			" [1er caractère non-espace trouvé : %c]\n",
+			__FILE__, __FUNCTION__, __LINE__, c );
+	avertissement = FAUX;	/* Un seul message suffit ! */
       }
     }
+
+    c = fgetc( fichier );
+    if ( EOF == c ) {
+      ERREUR( "Fin de fichier atteinte sans trouver de balise…" );
+      if ( code_erreur != NULL ) *code_erreur = -52;
+
+      /* On se remet au début… */
+      retour = fsetpos( fichier, &position );
+      if ( retour != 0 ) {
+	ERREUR( "Problème dans fsetpos [code : %d / %s]",
+		errno, strerror( errno ) );
+      }
+      return NULL;
+    }
   }
-  ungetc( c, fichier );		/* On remet le caractère pour être sûr qu'il soit inclus dans la balise */
+  ungetc( c, fichier );	/* On remet le caractère pour être sûr qu'il soit inclus dans la balise */
 
   /* On mémorise la position du début de la balise [peut être différente de celle du début… */
   retour = fgetpos( fichier, &debut_balise );
@@ -419,6 +430,9 @@ char *XML_LitContenuBalise( FILE *fichier, int *code_erreur )
     } while ( ( c_avant_avant != ']' ) || ( c_avant != ']' ) || ( c != '>' ) );
 
   } else {
+    /* On annule la lecture du 1er caractère utile */
+    ungetc( c, fichier );
+
     /* On mémorise la position du début de la balise [peut être différente de celle du début… */
     retour = fgetpos( fichier, &debut_texte );
     if ( retour != 0 ) {
@@ -431,9 +445,11 @@ char *XML_LitContenuBalise( FILE *fichier, int *code_erreur )
     /* On lit jusqu'à trouver le début de la balise fermante
        (postule qu'il n'y ait pas de balise ouvrante dans ce lot <balise>XXX</balise>)
      */
-    do {
+    c = fgetc( fichier );	/* On relie le 1er caractère de la balise… */
+    while ( c != '<' ) {
+      lg_texte++;		/* Le caractère lu précédemment compte… */
+
       c = fgetc( fichier );
-      lg_texte++;
       if ( EOF == c ) {
 	ERREUR( "Fin de fichier atteinte en voulant lire une balise…" );
 	if ( code_erreur != NULL ) *code_erreur = -75;
@@ -447,10 +463,11 @@ char *XML_LitContenuBalise( FILE *fichier, int *code_erreur )
 
 	return NULL;
       }
-    } while ( c != '<' );	/* On lit tout jusqu'à la balise suivante */
+    }
     /* On annule la lecture du dernier caractère : début de la balise suivante */
     ungetc( c, fichier );
-    lg_texte--;
+
+    /* printf( "Contenu brut de %lu caractères à lire\n", lg_texte ); */
   }
 
   /* On réserve & initialise la mémoire pour le contenu */
@@ -478,6 +495,69 @@ char *XML_LitContenuBalise( FILE *fichier, int *code_erreur )
   /* printf( "Texte lu : %s\n", texte ); */
   if ( code_erreur != NULL ) *code_erreur = 0;
   return texte;
+}
+
+/* ———————— Lecture d'une balise booléenne ————————
+   
+   fichier     : le fichier à lire
+   
+   Renvoie -1 en cas d'erreur, quelle qu'elle soit
+            0 si la balise vaut FAUX (0, false…)
+	    1 si la balise vaut VRAI (1, true…)
+ */
+
+int XML_LitBaliseBinaire(FILE *fichier)
+{
+  char *texte_balise;
+  unsigned long i;
+  int code_erreur;
+
+  if ( NULL == fichier ) return -1;
+
+  /* On lit le contenu de la balise */
+  texte_balise = XML_LitContenuBalise( fichier, &code_erreur );
+  if ( NULL == texte_balise ) {
+    (void) fprintf( stderr, "%s,%s l.%u : Impossible de lire la balise booléenne [code %d]\n",
+		    __FILE__, __FUNCTION__, __LINE__, code_erreur );
+    return -1;
+  }
+
+  /* La balise est-elle numérique ? */
+  if ( ( *texte_balise >= '0' ) && ( *texte_balise <= '9' ) ) {
+    int code_erreur;
+
+    code_erreur = atoi( texte_balise );
+    free( texte_balise ); texte_balise = NULL;
+
+    return ( code_erreur == 0 ) ? 0 : 1;
+  }
+ 
+  /* Balise textuelle : conversion en minuscules, pour comparaison ensuite… */
+  for ( i = 0 ; i < strlen( texte_balise ) ; i++ ) {
+    texte_balise[ i ] = tolower( texte_balise[ i ] );
+  }
+
+  /* Quelle est la valeur de la balise ? */
+  if ( strcmp( "true", texte_balise ) == 0 ) {
+    free( texte_balise ); texte_balise = NULL;
+
+    return 1;
+  }
+  if ( strcmp( "false", texte_balise ) == 0 ) {
+    free( texte_balise ); texte_balise = NULL;
+
+    return 0;
+  }
+
+  /* Ici : variante inconnue */
+  ERREUR( "Balise booléenne à contenu inconnu [%s]",
+	  texte_balise );
+
+  /* Plus besoin */
+  free( texte_balise ); texte_balise = NULL;
+
+  /* Problème… */
+  return -1;
 }
 
 /* ———————————————————————————————————————————————————————————————————— *
@@ -530,7 +610,7 @@ char *XML_LitQuestion( FILE *fichier, char *balise, int *code_erreur, FILE *fich
       do {
 	free( balise ); balise = NULL;
 
-	balise = XML_LitBalise( fichier, code_erreur );
+	balise = XML_LitBalise( fichier, code_erreur, FAUX );
 	if ( NULL == balise ) {
 	  ERREUR( "Impossible de trouver la balise fermante </question>" );
 	  return NULL;
@@ -552,7 +632,7 @@ char *XML_LitQuestion( FILE *fichier, char *balise, int *code_erreur, FILE *fich
       do {
 	free( balise ); balise = NULL;
 
-	balise = XML_LitBalise( fichier, code_erreur );
+	balise = XML_LitBalise( fichier, code_erreur, FAUX );
 	if ( NULL == balise ) {
 	  ERREUR( "Impossible de trouver la balise fermante </question>" );
 	  return NULL;
@@ -591,7 +671,7 @@ char *XML_LitQuestion( FILE *fichier, char *balise, int *code_erreur, FILE *fich
   while ( strcmp( "</question>", balise ) != 0 ) {
     free( balise ); balise = NULL;
 
-    balise = XML_LitBalise( fichier, code_erreur );
+    balise = XML_LitBalise( fichier, code_erreur, FAUX );
     if ( NULL == balise ) {
       ERREUR( "Impossible de trouver la balise fermante </question>" );
       return NULL;
@@ -652,6 +732,180 @@ int MOODLE_TypeQuestion( char *texte_type )
  |                                                                      |
  * ———————————————————————————————————————————————————————————————————— */
 
+
+/* ———————— Compter le nombre de réponses d'une question ———————— 
+ 
+   fichier     : le fichier XML en cours d'analyse
+   code_erreur : pointeur vers un entier, code erreur si erreur
+ */
+
+unsigned int XML_Q_CompterReponses(FILE *fichier, int *code_erreur)
+{
+  char *balise = NULL;
+  int retour;
+  fpos_t position_debut;
+  unsigned int nombre_reponses = 0;
+
+  if ( NULL == fichier ) return 0;
+
+  /* On repère la position actuelle */
+  retour = fgetpos( fichier, &position_debut );
+  if ( retour != 0 ) {
+    ERREUR( "Problème dans fgetpos [code : %d / %s] — lecture annulée",
+	    errno, strerror( errno ) );
+    if ( code_erreur != NULL ) *code_erreur = -81;
+    return 0;
+  }
+
+  /* On lit les balises jusqu'à la fin de la question
+      (sans avertissement car leur contenu sera sauté aussi…)
+   */
+  do {
+    free( balise ); balise = NULL;
+    balise = XML_LitBalise( fichier, code_erreur, FAUX );
+    if ( NULL == balise ) {
+      ERREUR( "Erreur en cherchant les réponses [%d]", 
+	      ( NULL == code_erreur ) ? 0 : *code_erreur );
+      break;
+    }
+
+    if ( strncmp( "<answer", balise, 7 ) == 0 ) {
+      /* On a trouvé une balise de réponse */
+      nombre_reponses++;
+    }
+  } while ( strcmp( "</question>", balise ) != 0 );
+
+  /* On se remet au début… */
+  retour = fsetpos( fichier, &position_debut );
+  if ( retour != 0 ) {
+    if ( code_erreur != NULL ) *code_erreur = -82;
+    ERREUR( "Problème dans fsetpos [code : %d / %s] — lecture ultérieure attendue problématique",
+	    errno, strerror( errno ) );
+  }
+
+  /* … et on renvoie le nombre de réponses lues */
+  return nombre_reponses;
+}
+
+/* ———————— Traiter une réponse (à un format classique) ————————
+
+   fichier        : le fichier XML en cours de traitement
+   fichier_HTML   : le fichier HTML qui doit contenir le résultat
+   balise         : la balise de réponse qui vient d'être lue
+   numero_reponse : le numéro de la réponse, dans la liste
+   code_erreur    : pointeur vers un entier, code erreur si erreur
+ */
+
+char *XML_TraiterReponse(FILE *fichier, FILE *fichier_HTML, char *balise,
+			 unsigned int numero_reponse, int *code_erreur)
+{
+  char *reponse;
+  double fraction;		/* La note de la réponse, en % */
+  int retour;
+
+  /* Vérifications initiales */
+  if ( NULL == balise ) return NULL;
+  if ( strncmp( "<answer", balise, 7 ) != 0 ) {
+    ERREUR( "La balise n'est pas un type de réponse reconnu"
+	    "[%s, on attend <answer]\n", balise );
+    return balise;
+  }
+
+  /* On analyse le début de la balise : format <answer fraction="..."> attendu */
+  reponse = balise + 7;
+  if ( *reponse == '>' ) {
+    (void) fprintf( stderr, "%s,%s l.%u : pas de fraction associée, supposée à 100%%\n",
+		    __FILE__, __FUNCTION__, __LINE__ );
+    fraction = 100;
+  } else {
+    if ( strncmp( " fraction=", reponse, 10 ) != 0 ) {
+      (void) fprintf( stderr, "%s,%s l.%u : format de balise inconnu — ignoré, fraction nulle\n",
+		      __FILE__, __FUNCTION__, __LINE__ );
+      fraction = 0;
+    } else {
+      char *fin_fraction;
+
+      reponse += 10;
+      /* Rien n'assure que le guillemet soit obligatoire */
+      if ( *reponse == '\"' ) reponse++;
+
+      errno = 0;		/* Doc : mettre errno à 0 avant… */
+      fraction = strtod( reponse, &fin_fraction );
+      if ( errno != 0 ) {
+	(void) fprintf( stderr, "%s,%s l.%u : ERREUR en voulant convertir la fraction en nombre [code %u, %s]\n",
+			__FILE__, __FUNCTION__, __LINE__, errno, strerror( errno ) );
+      }
+      if ( fin_fraction == reponse ) {
+	(void) fprintf( stderr, "%s,%s l.%u : Pas de fraction à convertir [balise : %s]\n",
+			__FILE__, __FUNCTION__, __LINE__, balise );
+      }
+    }
+  }
+
+  /* On commence la réponse */
+  retour = HTML_CommencerReponse( fichier_HTML, fraction, numero_reponse );
+  if ( retour != 0 ) {
+    (void) fprintf( stderr, "%s,%s l.%u : Problème en voulant commencer la réponse [code %d]\n",
+		    __FILE__, __FUNCTION__, __LINE__, retour );
+  }
+
+  /* On analyse les balises de la réponse */
+  do {
+    /* Plus besoin de cette balise */
+    free( balise ); balise = NULL;
+
+    balise = XML_LitBalise( fichier, code_erreur, VRAI );
+    if ( NULL == balise ) {
+      ERREUR( "Balise <answer> non fermée ? [code erreur : %d]\n",
+	      ( NULL == code_erreur ) ? 1987 : *code_erreur );
+      return NULL;
+    }
+
+    if ( strncmp( "<text", balise, 5 ) == 0 ) {
+      char *texte_reponse;
+
+      /* On lit le contenu de cette réponse */
+      texte_reponse = XML_LitContenuBalise( fichier, code_erreur );
+      if ( NULL == texte_reponse ) {
+	ERREUR( "Balise <text> non fermée ? [code erreur : %d]\n",
+	      ( NULL == code_erreur ) ? 1987 : *code_erreur );
+      }
+
+      /* Et on l'affiche… */
+      retour = HTML_TexteReponse( fichier_HTML, texte_reponse );
+      if ( retour != 0 ) {
+	(void) fprintf( stderr, "%s,%s l.%u : ERREUR en voulant écrire la réponse [code %d]\n",
+			__FILE__, __FUNCTION__, __LINE__, retour );
+      }
+
+      /* Plus besoin d'elle */
+      free( texte_reponse ) ; texte_reponse = NULL;
+
+      /* On lit la balise suivante... qui devrait être </text> */
+      free( balise ); balise = NULL;
+
+      balise = XML_LitBalise( fichier, code_erreur, FAUX );
+      if ( NULL == balise ) {
+	ERREUR( "Balise <text> non fermée ? [code erreur : %d]\n",
+		( NULL == code_erreur ) ? 1987 : *code_erreur );
+	return NULL;
+      }
+    } else if ( strcmp( "</text>", balise ) == 0 ) {
+      /* Balise </text> fermante, normale : rien à faire */
+    } else if ( strcmp( "</answer>", balise ) != 0 ) {
+      (void) fprintf( stderr, "%s,%s l.%u : Balise inconnue — ignorée [%s]\n",
+		      __FILE__, __FUNCTION__, __LINE__, balise );
+    }
+  } while ( strcmp( "</answer>", balise ) != 0 );
+  
+  /* On termine la réponse… */
+  retour = HTML_FinirReponse( fichier_HTML );
+
+  /* On renvoie la dernière balise lue */
+  return balise;
+}
+
+
 /* ———————— Trouver le titre d'une question XML Moodle ———————— 
  */
 
@@ -671,7 +925,7 @@ char *XML_Q_TrouverTitre(FILE *fichier, int *code_erreur)
   }
 
   /* On lit la 1re balise de la question */
-  balise = XML_LitBalise( fichier, code_erreur );
+  balise = XML_LitBalise( fichier, code_erreur, VRAI );
   if ( NULL == balise ) {
     ERREUR( "Impossible de trouver une balise" );
     return NULL;
@@ -683,7 +937,7 @@ char *XML_Q_TrouverTitre(FILE *fichier, int *code_erreur)
     free( balise ); balise = NULL;
 
     /* On récupère la balise suivante… */
-    balise = XML_LitBalise( fichier, code_erreur );
+    balise = XML_LitBalise( fichier, code_erreur, FAUX );
     if ( NULL == balise ) {
       ERREUR( "Problème en cherchant le nom de la question [code %d]\n",
 	      *code_erreur );
@@ -710,7 +964,7 @@ char *XML_Q_TrouverTitre(FILE *fichier, int *code_erreur)
     free( balise ); balise = NULL;
 
     /* On doit lire donc une balise texte */
-    balise = XML_LitBalise( fichier, code_erreur );
+    balise = XML_LitBalise( fichier, code_erreur, FAUX );
     if ( NULL == balise ) {
       ERREUR( "Problème en voulant lire le contenu de la balise <name> [code %d]\n",
 	      *code_erreur );
@@ -752,7 +1006,7 @@ char *XML_Q_TrouverTitre(FILE *fichier, int *code_erreur)
        Pour être tranquille, on lit les deux balises </text> et </name>
    */
   if ( VRAI == premiere_balise ) {
-    balise = XML_LitBalise( fichier, code_erreur ); /* Normalement, </text> */
+    balise = XML_LitBalise( fichier, code_erreur, VRAI ); /* Normalement, </text> */
     if ( NULL == balise ) {
       ERREUR( "Problème en voulant lire la balise </text> [code %d]\n",
 	      *code_erreur );
@@ -765,7 +1019,7 @@ char *XML_Q_TrouverTitre(FILE *fichier, int *code_erreur)
     do {
       free( balise ); balise = NULL;
 
-      balise = XML_LitBalise( fichier, code_erreur ); /* Normalement, </text> */
+      balise = XML_LitBalise( fichier, code_erreur, VRAI ); /* Normalement, </text> */
       if ( NULL == balise ) {
 	ERREUR( "Problème en cherchant la balise </name> [code %d]\n",
 		*code_erreur );
@@ -786,4 +1040,142 @@ char *XML_Q_TrouverTitre(FILE *fichier, int *code_erreur)
 
   /* On renvoie le titre de la question */
   return titre;
+}
+
+/* ———————— Trouver l'énoncé d'une question XML Moodle ———————— 
+ */
+
+char *XML_Q_TrouverEnonce(FILE *fichier, int *code_erreur)
+{
+  char *balise, *enonce;
+  int premiere_balise = VRAI, retour;
+  fpos_t position_debut;
+
+  /* On mémorise la position du début de la question */
+  retour = fgetpos( fichier, &position_debut );
+  if ( retour != 0 ) {
+    ERREUR( "Problème dans fgetpos [code : %d / %s] — lecture annulée",
+	    errno, strerror( errno ) );
+    if ( code_erreur != NULL ) *code_erreur = -81;
+    return NULL;
+  }
+
+  /* On lit la 1re balise de la question */
+  balise = XML_LitBalise( fichier, code_erreur, VRAI );
+  if ( NULL == balise ) {
+    ERREUR( "Impossible de trouver une balise" );
+    return NULL;
+  }
+
+  /* Tant que cette balise n'est pas la bonne… */
+  while( strncmp( "<questiontext", balise, 13 ) != 0 ) {
+    (void) fprintf( stderr, "%s,%s l.%u : Balise ignorée: %s\n",
+		    __FILE__, __FUNCTION__, __LINE__, balise );
+    premiere_balise = FAUX;	/* C'est donc que le nom est au milieu ou absent */
+    free( balise ); balise = NULL;
+
+    /* On récupère la balise suivante… */
+    balise = XML_LitBalise( fichier, code_erreur, FAUX );
+    if ( NULL == balise ) {
+      ERREUR( "Problème en cherchant le nom de la question [code %d]\n",
+	      *code_erreur );
+      return NULL;
+    }
+    if ( strcmp( "</question>", balise ) == 0 ) {
+      (void) fprintf( stderr, "%s,%s l.%u : Question sans balise « énoncé »\n",
+		      __FILE__, __FUNCTION__, __LINE__ );
+      /* On se remet au début de la question */
+      retour = fsetpos( fichier, &position_debut );
+      if ( retour != 0 ) {
+	ERREUR( "Problème dans fsetpos [code : %d / %s] — lecture ultérieure attendue problématique",
+		errno, strerror( errno ) );
+      }
+
+      /* On renvoie NULL, mais sans erreur */
+      if ( code_erreur != NULL ) *code_erreur = 0;
+      return NULL;
+    }
+  }
+
+  /* Si on est là : on a lu la balise <questiontext*> */
+  do {
+    free( balise ); balise = NULL;
+
+    /* On doit lire donc une balise texte */
+    balise = XML_LitBalise( fichier, code_erreur, VRAI );
+    if ( NULL == balise ) {
+      ERREUR( "Problème en voulant lire le contenu de la balise <questiontext> [code %d]\n",
+	      *code_erreur );
+      return NULL;
+    }
+    if ( strcmp( "</questiontext>", balise ) == 0 ) {
+      /* Balise vide ou sans texte */
+      if ( FAUX == premiere_balise ) {
+	retour = fsetpos( fichier, &position_debut );
+	if ( retour != 0 ) {
+	  ERREUR( "Problème dans fsetpos [code : %d / %s] — lecture ultérieure attendue problématique",
+		  errno, strerror( errno ) );
+	}
+      }
+
+      ERREUR( "Balise <questiontext> sans balise <text>. Format inconnu." );
+
+      /* On libère la balise */
+      free( balise ); balise = NULL;
+
+      /* On renvoie NULL, mais sans erreur */
+      if ( code_erreur != NULL ) *code_erreur = 0;
+      return NULL;
+    }
+  } while ( strcmp( "<text>", balise ) != 0 );
+
+  /* On libère la balise : plus besoin d'elle… */
+  free( balise ); balise = NULL;
+
+  /* Si on est là, on n'a plus qu'à lire le texte du nom */
+  enonce = XML_LitContenuBalise( fichier, code_erreur );
+  if ( NULL == enonce ) {
+    ERREUR( "Erreur en voulant lire le titre d'une question (après balise <text>)" );
+    return NULL;
+  }
+
+  /* Si première balise [cas le lus fréquent] :
+       inutile de rembobiner, autant continuer à lire directement.
+       Pour être tranquille, on lit les deux balises </text> et </name>
+   */
+  if ( VRAI == premiere_balise ) {
+    balise = XML_LitBalise( fichier, code_erreur, VRAI ); /* Normalement, </text> */
+    if ( NULL == balise ) {
+      ERREUR( "Problème en voulant lire la balise </text> [code %d]\n",
+	      *code_erreur );
+      return NULL;
+    }
+    if ( strcmp( balise, "</text>" ) != 0 ) {
+      ERREUR( "Balise inattendue : %s (au lieu de </text>)", balise );
+    }
+
+    do {
+      free( balise ); balise = NULL;
+
+      balise = XML_LitBalise( fichier, code_erreur, VRAI ); /* Normalement, </text> */
+      if ( NULL == balise ) {
+	ERREUR( "Problème en cherchant la balise </questiontext> [code %d]\n",
+		*code_erreur );
+	return NULL;
+      }
+    } while( strcmp( balise, "</questiontext>" ) != 0 );
+
+    /* On libère la dernière balise : </questiontext>, inutile */
+    free( balise ); balise = NULL;
+  } else {
+    /* Sinon, on se remet au début de la question */
+    retour = fsetpos( fichier, &position_debut );
+    if ( retour != 0 ) {
+      ERREUR( "Problème dans fsetpos [code : %d / %s] — lecture ultérieure attendue problématique",
+	      errno, strerror( errno ) );
+    }
+  }
+
+  /* On renvoie le titre de la question */
+  return enonce;
 }

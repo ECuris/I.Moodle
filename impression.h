@@ -21,10 +21,17 @@
 
 int XML_ImprimerFichier( const char *nom_fichier ); /* Traitement d'un fichier */
 
-char *XML_LitBalise       ( FILE *fichier, int *code_erreur );
+char *XML_LitBalise       ( FILE *fichier, int *code_erreur, int avertissement );
 char *XML_LitContenuBalise( FILE *fichier, int *code_erreur );
+int   XML_LitBaliseBinaire( FILE *fichier );
 
+char *XML_Q_TrouverEnonce ( FILE *fichier, int *code_erreur );
 char *XML_Q_TrouverTitre  ( FILE *fichier, int *code_erreur );
+
+char *XML_TraiterReponse  ( FILE *fichier, FILE *fichier_HTML, char *balise,
+			    unsigned int numero_reponse, int *code_erreur );
+
+unsigned int XML_Q_CompterReponses( FILE *fichier, int *code_erreur );
 
 /* ———— Les différents types de question possibles ———— */
 
@@ -54,8 +61,15 @@ char *HTML_PreparerTexte   ( char *texte );
 int HTML_CreerCategorie ( FILE *fichier_HTML, char *nom_categorie );
 int HTML_FermerCategorie( FILE *fichier_HTML );
 
-int HTML_CreerQuestion( FILE *fichier_HTML, int type, char *titre );
-int HTML_FinirQuestion( FILE *fichier_HTML );
+int HTML_CreerQuestion  ( FILE *fichier_HTML, int type, char *titre );
+int HTML_EnonceQuestion ( FILE *fichier_HTML, char *enonce,
+			  unsigned int nombre_reponses, int titres );
+int HTML_FinirQuestion  ( FILE *fichier_HTML );
+
+int HTML_CommencerReponse( FILE *fichier_HTML, double fraction, unsigned int numero_reponses );
+int HTML_TexteReponse    ( FILE *fichier_HTML, char *reponse     );
+int HTML_AideReponse     ( FILE *fichier_HTML, char *commentaire );
+int HTML_FinirReponse    ( FILE *fichier_HTML );
 
 /* ———————— Les fonctions pour l'interface ——————————————— */
 
