@@ -188,7 +188,7 @@ int HTML_CreerQuestion(FILE *fichier_HTML, int type, char *titre)
 
   /* Le bandeau avec le titre de la question */
   (void) fprintf( fichier_HTML,
-		  "    <div class=\"en_tete question\">\n"
+		  "    <div class=\"en_tete_question\">\n"
 		  "     <p class=\"numero_question\">Q %03u [%s]</p>\n"
 		  "     <h3 class=\"titre_question\">",
 		  numero_question, HTML_TexteTypeQuestion( type ) );
@@ -203,7 +203,8 @@ int HTML_CreerQuestion(FILE *fichier_HTML, int type, char *titre)
 
   /* Le début du contenant de l'énoncé et des réponses */
   (void) fprintf( fichier_HTML,
-		  "    <table class=\"contenu question\">\n" );
+		  "    <table class=\"contenu_question\">\n"
+		  "     <tbody>\n" );
   return 0;
 }
 
@@ -305,11 +306,11 @@ int HTML_CommencerReponse(FILE *fichier_HTML, double fraction,
   if ( 100 == fraction_i ) {
     retour = fputs( "juste", fichier_HTML );
   } else if ( fraction > 0.0 ) {
-    retour = fputs( "juste partielle", fichier_HTML );
+    retour = fputs( "partielle", fichier_HTML );
   } else if ( 0 == fraction ) {
     retour = fputs( "fausse", fichier_HTML );
   } else if ( fraction < 0 ) {
-    retour = fputs( "fausse negatif", fichier_HTML );
+    retour = fputs( "negatif", fichier_HTML );
   }
   if ( retour <= 0 ) {
     (void) fprintf( stderr, "%s,%s l.%u :"
@@ -432,6 +433,7 @@ int HTML_FinirQuestion(FILE *fichier_HTML)
   if ( NULL == fichier_HTML ) return -1; /* Pas de fichier HTML indiqué… */
 
   (void) fprintf( fichier_HTML,
+		  "     </tbody>\n"
 		  "    </table> <!-- Contenu de la question -->\n"
 		  "   </div> <!-- Question -->\n\n" );
 

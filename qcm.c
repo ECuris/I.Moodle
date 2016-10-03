@@ -120,7 +120,7 @@ char *XML_LitQCM( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_H
       /* Une ligne précisant cela */
       (void) fprintf( fichier_HTML,
 		      "     <tr>\n"
-		      "      <td class=\"info.question\">%s</td>\n"
+		      "      <td class=\"info_question\" colspan=4>%s</td>\n"
 		      "     </tr>\n",
 		      ( valeur ) ? "Les réponses seront mélangées à chaque utilisation" :
 		                   "Les réponses seront dans l'ordre indiqué" );
@@ -137,7 +137,7 @@ char *XML_LitQCM( FILE *fichier, char *balise, int *code_erreur, FILE *fichier_H
       /* Une ligne précisant cela */
       (void) fprintf( fichier_HTML,
 		      "     <tr>\n"
-		      "      <td class=\"info.question\">%s</td>\n"
+		      "      <td class=\"info_question\" colspan=4>%s</td>\n"
 		      "     </tr>\n",
 		      ( valeur ) ? "Une seule des réponses peut être choisie" :
 		                   "Plusieurs réponses peuvent être choisies" );

@@ -1,0 +1,245 @@
+/* La feuille de style CSS pour les HTML à imprimer
+     produits à partir des questionnaires XML Moodle
+
+   © octobre 2016, Emmanuel CURIS
+ */
+
+/* Les réglages généraux pour l'ensemble du document */
+body { 
+    background-color:white;
+    font-family: "Garamond", serif;
+    font-size: 12pt;
+    margin: 0;
+}
+
+/* On définit les marges pour la version papier */
+@page {
+    size: auto;
+    margin-top: 15mm;
+    margin-bottom: 15mm;
+    margin-left: 10mm;
+    margin-right: 10mm;
+}
+
+/* Le titre global du document */
+h1.titre {
+    background-color: Red;
+    text-align: center;
+    font-size: 16pt;
+    padding-top: 1mm;
+    padding-bottom: 1mm;
+    margin-bottom: 0;
+    margin-top: 0;
+    margin-left: 0;
+    margin-right: 0;
+}
+
+/* L'en-tête */
+
+p.en_tete {
+    font-size: 10pt;
+    margin-top: 1mm;
+    margin-bottom: 1mm;
+}
+
+.nom_fichier {
+    font-family: "Courier", sans-serif;
+}
+
+hr.separateur {
+    display: block;
+    border-style: solid;
+    border-color: Black;
+    margin: 0;
+    padding: 0;
+}
+
+
+/* ————————————————————————————————————————
+          Mise en page des catégories
+   ———————————————————————————————————————— */
+
+/* Le bloc d'une catégorie */
+div.categorie {
+    border-style: solid;
+    border-width: 1px;
+    border-color: Red;
+    margin-bottom: 5mm;
+    padding: 0;
+}
+
+/* Le nom de la catégorie */
+h2.categorie {
+    background-color: Red;
+    font-size: 14pt;
+    margin-top: 0;
+    margin-bottom: 1mm;
+}
+
+/* Le contenu de la catégorie */
+div.contenu_categorie {
+    padding-left: 1mm;
+    padding-right: 1mm;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+}
+
+/* Le nombre de questions dans la catégorie */
+.bilan_categorie {
+    margin-top: 1mm;
+    margin-bottom: 0;
+    padding-bottom: 1mm;
+    font-style: italic;
+}
+
+/* ————————————————————————————————————————
+          Mise en page des questions
+   ———————————————————————————————————————— */
+
+/* On évite les changements de page dans la question */
+@media print {
+    table { page-break-inside: avoid; }
+    div.question { page-break-inside: avoid; }
+}
+
+/* Bloc d'une question */
+div.question {
+    border-style: solid;
+    border-color: DarkGreen;
+    border-width: thin;
+    margin-bottom: 2mm;
+}
+
+/* ——————————————— L'en-tête de la question ——————————————— */
+
+/* L'en-tête d'une question */
+div.en_tete_question {
+    margin: 0;
+    margin-bottom: 0mm;
+    padding: 0mm;
+    border-bottom-style: solid;
+    border-bottom-color: DarkGreen;
+    border-bottom-width: thin;
+}
+
+/* Le numéro (automatique) & le type de la question */
+p.numero_question {
+    background-color: DarkGreen;
+    margin: 0;
+    padding: 1mm;
+    display: inline-block;
+    font-size: 11pt;
+    font-weight: bold;
+    border-style: none;
+    height: 100%;
+}
+
+/* Le titre de la question */
+h3.titre_question {
+    background-color: White;
+    display: inline-block;
+    margin: auto;
+    padding: 1mm;
+    font-size: 11pt;
+    font-weight: bold;
+    border-style: none;
+    height: 100%;
+    /* border-top-style: solid; */
+    /* border-top-color: DarkGreen; */
+    /* border-top-width: thin; */
+}
+
+/* ——————————————— Le contenu de la question ——————————————— */
+
+table.contenu_question {
+    border-collapse: collapse;
+    border-style: none;
+    /* width: 100%; */
+    margin: 0;
+    table-layout: fixed;
+}
+
+th.titre {
+    background-color: CornSilk;
+    font-size: 11pt;
+    font-style: italic;
+    font-weight: normal;
+}
+
+th.énoncé {
+    width: 50%;
+}
+
+th.réponse {
+    width: 50%;
+}
+
+span.nbr_réponses {
+    font-size: 9pt;
+    font-style: normal;
+    font-weight: normal;    
+}
+
+td.enonce {
+    padding-left: 1mm;
+    padding-right: 5mm;
+    font-size: 12pt;
+    font-style: normal;
+    font-weight: normal;
+    text-align: justify;
+    text-justify: distribute;
+    text-indent: 18pt;
+    vertical-align: top;
+    border-bottom-style: solid;
+    border-bottom-color: black;
+    border-bottom-width: thin;
+}
+
+td.reponse {
+    padding-left: 1mm;
+    padding-right: 5mm;
+    font-size: 12pt;
+    font-style: normal;
+    text-align: left;
+    vertical-align: center;
+    border-bottom-style: solid;
+    border-bottom-color: black;
+    border-bottom-width: thin;
+}
+
+td.numero {
+    width: 2%;
+    font-weight: normal;
+}
+
+td.note {
+    width: 10%;
+    font-weight: bold;
+}
+
+td.texte {
+    /* width: 40%; */
+}
+
+.juste {
+    background-color: Chartreuse;
+}
+
+.partielle {
+    background-color: DarkSeaGreen;
+}
+
+.fausse {
+    background-color: DarkOrange;
+}
+
+.negative {
+    background-color: DeepPink;
+}
+
+.info_question {
+    font-size: 10pt;
+    font-style: italic;
+    padding-left: 2mm;
+}

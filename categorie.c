@@ -147,7 +147,7 @@ int HTML_FermerCategorie(FILE *fichier_HTML)
 
   /* Bilan sur l'analyse de cette catégorie */
   (void) fprintf( fichier_HTML,
-		  "    <p class=\"bilan categorie\">" );
+		  "    <p class=\"bilan_categorie\">" );
   if ( 0 == numero_question ) {
     (void) fprintf( fichier_HTML,
 		    "<span style=\"color: Red;\">"
